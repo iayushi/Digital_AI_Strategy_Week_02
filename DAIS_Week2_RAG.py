@@ -87,7 +87,7 @@ with st.expander("💡 Sample Questions", expanded=False):
         if st.button("Human-AI partnership question", key="q2"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "In the collaboration between MD Anderson's doctors and IBM Watson, what were the biggest challenges to the human-AI "superhero team"? "
+            st.session_state.sample_question = "In the collaboration between MD Anderson's doctors and IBM Watson, what were the biggest challenges to the human-AI superhero team? "
     
     # Simple Explanations
     st.markdown("**👶 Simple Explanations**")
