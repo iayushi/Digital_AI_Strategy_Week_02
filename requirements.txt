@@ -1,0 +1,15 @@
+streamlit
+openai
+pysqlite3-binary
+langchain
+langchain_core
+langchain-openai
+langchain-anthropic
+langchain-together
+langchain-perplexity
+langchain-community
+langchain-groq
+chromadb
+sentence-transformers
+langchain-huggingface
+torch
