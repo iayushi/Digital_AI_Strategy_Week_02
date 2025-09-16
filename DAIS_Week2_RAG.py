@@ -103,9 +103,7 @@ with st.expander("💡 Sample Questions", expanded=False):
         if st.button("🦸‍♂️ Superhero Team Powers", key="q4"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "If IBM Watson's cognitive computing was a superpower, what would be its kryptonite?
-
-"
+            st.session_state.sample_question = "If IBM Watson's cognitive computing was a superpower, what would be its kryptonite?"
     
     # Analogies
     st.markdown("**🔗 Analogies**")
