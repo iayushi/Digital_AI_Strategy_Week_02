@@ -65,7 +65,7 @@ st.sidebar.markdown(
 ### Change the below chroma DB path for changing the the vector DB
 
 # Load prebuilt chroma DB path 
-PERSIST_DIRECTORY = "./Week_1_31Aug2025"
+PERSIST_DIRECTORY = "./Week_2_16Sep2025"
 
 ### --------------------
 
