@@ -81,7 +81,7 @@ with st.expander("💡 Sample Questions", expanded=False):
         if st.button("🎭 Case flow and Explanation", key="q1"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "What are the chronological flow of events around design and use case of IBM watson in healthcare?"
+            st.session_state.sample_question = "what can I learn from this session for overall digital and AI strategy course?"
     
     with col2:
         if st.button("Human-AI partnership question", key="q2"):
@@ -119,7 +119,7 @@ with st.expander("💡 Sample Questions", expanded=False):
         if st.button("Technical Concepts", key="q6"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "What are the technical concepts covered in this case?"
+            st.session_state.sample_question = "What are the technical concepts covered in this case? Explain in simple terms too"
 
 model = None
 
