@@ -73,21 +73,21 @@ PERSIST_DIRECTORY = "./Week_2_16Sep2025"
 with st.expander("💡 Sample Questions", expanded=False):
     st.markdown("### Get started with these example questions:")
     
-    # Pop Culture References
-    st.markdown("**🦸 Pop Culture References**")
+    # Inference based
+    st.markdown("**🦸 Case Study References**")
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🎭 Marvel Fan Explanation", key="q1"):
+        if st.button("🎭 Case flow and Explanation", key="q1"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "How are content in this session related to Digital Platform, AI, and Business Strategy ? Explain to a Marvel fan."
+            st.session_state.sample_question = "What are the details covered in the appendix of this case?"
     
     with col2:
         if st.button("Human-AI partnership question", key="q2"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "In the collaboration between MD Anderson's doctors and IBM Watson, what were the biggest challenges to the human-AI superhero team? "
+            st.session_state.sample_question = "In the collaboration between MD Anderson's doctors and IBM Watson, what were the biggest challenges to the human-AI team? "
     
     # Simple Explanations
     st.markdown("**👶 Simple Explanations**")
@@ -105,21 +105,21 @@ with st.expander("💡 Sample Questions", expanded=False):
                 st.session_state.sample_question = None
             st.session_state.sample_question = "If IBM Watson's cognitive computing was a superpower, what would be its kryptonite?"
     
-    # Analogies
-    st.markdown("**🔗 Analogies**")
+    # Class Prep
+    st.markdown("**🔗 Class Preparation**")
     col5, col6 = st.columns(2)
     
     with col5:
-        if st.button("🧱 LEGO Masterpiece", key="q5"):
+        if st.button("🧱 Direct question on case decision", key="q5"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "Compare digital and AI Strategy based on this session readings to building a LEGO masterpiece"
+            st.session_state.sample_question = "What were the key factors that led to the failure of the IBM Watson for Oncology project at MD Anderson, and what broader lessons does this case offer for the adoption of AI in high-stakes industries?"
     
     with col6:
-        if st.button("🎮 Video Game Platforms", key="q6"):
+        if st.button("Technical Concepts", key="q6"):
             if 'sample_question' not in st.session_state:
                 st.session_state.sample_question = None
-            st.session_state.sample_question = "How would you explain challenges of value generation from chatbot like IT to someone who loves video games?"
+            st.session_state.sample_question = "What are the technical concepts covered in this case?"
 
 model = None
 
