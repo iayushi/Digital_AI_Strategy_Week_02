@@ -15,3 +15,5 @@ langchain-groq
 chromadb
 sentence-transformers
 langchain-huggingface
+torch
+langchain_classic
