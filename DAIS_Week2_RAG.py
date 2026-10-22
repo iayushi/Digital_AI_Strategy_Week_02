@@ -1,54 +1,54 @@
 import streamlit as st
-import json
-import uuid
-from base64 import b64decode
 import sys
 import pysqlite3
 sys.modules["sqlite3"] = pysqlite3
 from langchain_community.vectorstores import Chroma
-# from langchain.storage import InMemoryStore
-from langchain_core.stores import InMemoryStore
-# from langchain.schema import Document
-from langchain_core.documents import Document
-# from langchain.retrievers.multi_vector import MultiVectorRetriever
-from langchain_classic.retrievers.multi_vector import MultiVectorRetriever
-# from langchain_community.retrievers.multi_vector import MultiVectorRetriever
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.messages import HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
 # from langchain_together import ChatTogether
 from langchain_groq import ChatGroq
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-#from langchain_community.chat_models import ChatPerplexity
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain_perplexity import ChatPerplexity
-#from langchain.prompts import ChatPromptTemplate
-from langchain_classic.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_huggingface import HuggingFaceEmbeddings
-from sentence_transformers import SentenceTransformer
-# from langchain.schema import Document
-from langchain_classic.schema import Document
 import traceback
-from operator import itemgetter
-import torch
 import os
 import shutil
 import tempfile
 
 os.environ["PYTORCH_ENABLE_META_TENSOR"] = "0"
 
+st.set_page_config(page_title="Week 2 · Digital AI Strategy", page_icon="🎓")
+
 st.title("Course : Digital AI strategy")
 
 st.subheader ("Week 2: Contemporary Digital Technologies Overview, such as AI, Chatbot, NLP.")
 
+# Provider settings: API key prefix (None = not checked), default model, where to get a key
+PROVIDERS = {
+    "OpenAI": {"prefix": "sk-", "default": "gpt-4o-mini", "keys": "https://platform.openai.com/api-keys"},
+    # "Together" is disabled; see the commented-out block further down
+    "Groq": {"prefix": None, "default": "openai/gpt-oss-20b", "keys": "https://console.groq.com/keys"},
+    "Hugging Face": {"prefix": None, "default": "openai/gpt-oss-20b", "keys": "https://huggingface.co/settings/tokens"},
+    "Anthropic": {"prefix": "sk-ant-", "default": "claude-haiku-5-5", "keys": "https://platform.claude.com/settings/keys"},
+    "Perplexity": {"prefix": "pplx-", "default": "the 'fast' preset", "keys": "https://console.perplexity.ai"},
+}
+
 # Sidebar: Choose provider & keys
-provider = st.sidebar.selectbox(
-    "Choose LLM Provider:",
-    ("OpenAI", #"Together", 
-     "Groq", "Hugging Face", "Anthropic", "Perplexity")
-)
-api_key = st.sidebar.text_input(f"{provider} API Key", type="password")
-model_name = st.sidebar.text_input("Model name (optional)", "")
+provider = st.sidebar.selectbox("Choose LLM Provider:", list(PROVIDERS))
+settings = PROVIDERS[provider]
+api_key = st.sidebar.text_input(f"{provider} API Key", type="password").strip()
+st.sidebar.caption(f"Need a key? [Get a {provider} API key]({settings['keys']})")
+model_name = st.sidebar.text_input(
+    "Model name (optional)",
+    "",
+    placeholder=f"Default: {settings['default']}",
+    help="Leave blank to use the default model."
+    + (" Perplexity model names look like 'openai/gpt-5.6-sol'." if provider == "Perplexity" else ""),
+).strip()
+
+if st.sidebar.button("🗑️ New chat"):
+    st.session_state.messages = []
 
 # Spacer to push warning downward (optional)
 st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
@@ -73,7 +73,7 @@ st.sidebar.markdown(
 
 ### Change the below chroma DB path for changing the the vector DB
 
-# Load prebuilt chroma DB path 
+# Load prebuilt chroma DB path
 PERSIST_DIRECTORY = "./Week_2_16Sep2025"
 
 ### --------------------
@@ -133,57 +133,67 @@ with st.expander("💡 Sample Questions", expanded=False):
 model = None
 
 if api_key:
-    try:
-        if provider == "OpenAI" and api_key.startswith("sk-"):
-            model = ChatOpenAI(
-                api_key=api_key,
-                model=model_name or "gpt-4o-mini",
-                temperature=0.7
-            )
+    key_error = None
+    if provider == "OpenAI" and api_key.startswith("sk-ant-"):
+        key_error = "That looks like an Anthropic key. Choose Anthropic as the provider, or paste an OpenAI key."
+    elif settings["prefix"] and not api_key.startswith(settings["prefix"]):
+        key_error = (
+            f"{provider} API keys start with '{settings['prefix']}'. "
+            "Check that you chose the right provider and pasted the whole key."
+        )
 
-       # elif provider == "Together":
-       #     model = ChatTogether(
-       #         together_api_key=api_key,
-       #         model=model_name or "mistralai/Mistral-7B-Instruct-v0.2",
-       #         temperature=0.7
-       #     )
+    if key_error:
+        st.error(key_error)
+    else:
+        try:
+            if provider == "OpenAI":
+                model = ChatOpenAI(
+                    api_key=api_key,
+                    model=model_name or "gpt-4o-mini",
+                    temperature=0.7
+                )
 
-        elif provider == "Groq":
-            model = ChatGroq(
-                groq_api_key=api_key,
-                model_name=model_name or "openai/gpt-oss-20b",
-                temperature=0.7
-            )
+            #elif provider == "Together":
+            #    model = ChatTogether(
+            #        together_api_key=api_key,
+            #        model=model_name or "mistralai/Mistral-7B-Instruct-v0.2",
+            #        temperature=0.7
+            #    )
 
-        elif provider == "Hugging Face":
-            # Any chat model served by Hugging Face Inference Providers
-            llm = HuggingFaceEndpoint(
-                huggingfacehub_api_token=api_key,
-                repo_id=model_name or "openai/gpt-oss-20b",
-                provider="auto",
-                max_new_tokens=1024,
-                temperature=0.7
-            )
-            model = ChatHuggingFace(llm=llm)
+            elif provider == "Groq":
+                model = ChatGroq(
+                    groq_api_key=api_key,
+                    model_name=model_name or "openai/gpt-oss-20b",
+                    temperature=0.7
+                )
 
-        elif provider == "Anthropic" and api_key.startswith("sk-ant-"):
-            # The Anthropic API no longer accepts temperature, so none is passed
-            model = ChatAnthropic(
-                anthropic_api_key=api_key,
-                model_name=model_name or "claude-haiku-5-5"
-            )
+            elif provider == "Hugging Face":
+                # Any chat model served by Hugging Face Inference Providers
+                llm = HuggingFaceEndpoint(
+                    huggingfacehub_api_token=api_key,
+                    repo_id=model_name or "openai/gpt-oss-20b",
+                    provider="auto",
+                    max_new_tokens=1024,
+                    temperature=0.7
+                )
+                model = ChatHuggingFace(llm=llm)
 
-        elif provider == "Perplexity" and api_key.startswith("pplx-"):
-            # Sonar models were retired; Perplexity now serves the Agent API.
-            # The "fast" preset replaces "sonar"; a model name must be "provider/model".
-            if model_name:
-                model = ChatPerplexity(api_key=api_key, model=model_name, use_responses_api=True)
-            else:
-                model = ChatPerplexity(api_key=api_key, use_responses_api=True, model_kwargs={"preset": "fast"})
-        else:
-            st.error("Unsupported provider or invalid API key format.")
-    except Exception as e:
-        st.error(f"Error initializing model: {e}")
+            elif provider == "Anthropic":
+                # The Anthropic API no longer accepts temperature, so none is passed
+                model = ChatAnthropic(
+                    anthropic_api_key=api_key,
+                    model_name=model_name or "claude-haiku-5-5"
+                )
+
+            elif provider == "Perplexity":
+                # Sonar models were retired; Perplexity now serves the Agent API.
+                # The "fast" preset replaces "sonar"; a model name must be "provider/model".
+                if model_name:
+                    model = ChatPerplexity(api_key=api_key, model=model_name, use_responses_api=True)
+                else:
+                    model = ChatPerplexity(api_key=api_key, use_responses_api=True, model_kwargs={"preset": "fast"})
+        except Exception as e:
+            st.error(f"Could not set up the {provider} model: {e}")
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_SOURCE = os.path.join(APP_DIR, PERSIST_DIRECTORY)
@@ -216,6 +226,66 @@ def describe_folder(path):
             lines.append(f"  {os.path.relpath(full, path)}  {os.path.getsize(full)} bytes")
     return "\n".join(lines)
 
+# Earlier question/answer pairs sent along with each question, so follow-ups work
+HISTORY_TURNS = 3
+
+def build_prompt(question, docs, history):
+    context_text = "\n\n".join(d.page_content for d in docs)
+    history_text = "\n\n".join(
+        f"{'Student' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
+        for m in history[-2 * HISTORY_TURNS:]
+    ) or "(none)"
+    prompt = f"""
+Role: You are a helpful assistant for advanced undergraduate students taking the Digital and AI strategy course. Your purpose is to help students understand the provided lecture notes and examples.
+Instructions:
+1.  Answer questions only using the provided context and the conversation so far. Do not use outside knowledge.
+2.  Maintain a polite and encouraging tone.
+3.  If a student asks a question that is not covered in the context, inform them that the question is outside the current topic of this session.
+4.  Suggest that they can search the web for more information if they are curious.
+5.  If a question repeats an earlier one, provide a more concise version of the previous answer.
+6.  Do not provide any in-text citations in your response without including reference list in the response.
+
+Conversation so far:
+{history_text}
+
+Context:
+{context_text}
+
+Question: {question}
+"""
+    return [HumanMessage(content=prompt)]
+
+def friendly_error(e):
+    status = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
+    name = model_name or settings["default"]
+    if status in (401, 403):
+        return (
+            f"{provider} rejected your API key. Check that it was copied correctly, "
+            "is still active, and that your account has API access or credit."
+        )
+    if status == 404:
+        return f"The model '{name}' isn't available from {provider}. Clear the Model name box to use the default, or check the spelling."
+    if status == 429:
+        return f"{provider} says you've hit a usage limit or run out of credit. Wait a minute and try again, or check your {provider} account."
+    if status == 400:
+        return f"{provider} couldn't process the request. This is often an unsupported model name, so try clearing the Model name box."
+    if status and status >= 500:
+        return f"{provider} is having problems right now. Please try again in a minute, or choose another provider."
+    return "Something went wrong while getting an answer. Please try again, or choose another provider."
+
+def show_text(text):
+    # Show "$" literally: Streamlit would read "$5 to $10" as a LaTeX formula
+    st.markdown(text.replace("$", "\\$"))
+
+def show_sources(sources):
+    if sources:
+        with st.expander("📚 Sources from the course materials"):
+            for i, snippet in enumerate(sources, 1):
+                # Escape characters Streamlit would read as Markdown or LaTeX
+                for ch in "\\`*_#[]<>$":
+                    snippet = snippet.replace(ch, "\\" + ch)
+                st.markdown(f"**{i}.** {snippet}")
+
 if model:
 
     try:
@@ -233,85 +303,60 @@ if model:
         )
         st.stop()
 
-    # Cleaner parse_docs with expander
-    def parse_docs(docs):
-        return {"texts": docs}
-
-    # Replace retriever with a RunnableLambda that does similarity_search
-    def run_similarity_search(query):
-        # k=5 to get top 5 docs, adjust as needed
-        results = vectorstore.similarity_search(query, k=5)
-        return results
-
-    # Build prompt with expander
-    def build_prompt(kwargs):
-        ctx = kwargs["context"]
-        question = kwargs["question"]
-        context_text = "\n".join([d.page_content for d in ctx["texts"]])
-        prompt_template = f"""
-            Role: You are a helpful assistant for advance undergratuate students taking the Digital and AI strategy course. Your purpose is to help students understand the provided lecture notes and examples.
-            Instructions:
-            1.  Answer question only using the provided context. Do not use outside knowledge.
-            2.  Maintain a polite and encouraging tone.
-            3.  If a student asks a question that is not covered in the context, inform them that the question is outside the current topic of this session.
-            4.  Suggest that they can search the web for more information if they are curious.
-            5.  If a question is a duplicate, provide a more concise version of the previous answer.
-            6.  Do not provide any in-text citations in your response without including reference list in the response.
-            Context:
-            {context_text}
-
-            Question: {question}
-            """
-
-        return ChatPromptTemplate.from_messages(
-            [{"role": "user", "content": prompt_template}]
-        ).format_messages()
-
-    # Compose chain using RunnableLambda for similarity_search + parse_docs
-    chain = (
-        {
-            "context": itemgetter("question") | RunnableLambda(run_similarity_search) | RunnableLambda(parse_docs),
-            "question": itemgetter("question")
-        }
-        | RunnableLambda(build_prompt)
-        | model
-        | StrOutputParser()
-    )
-
     # Streamlit chat UI
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
+        with st.chat_message(msg["role"]):
+            show_text(msg["content"])
+            show_sources(msg.get("sources"))
 
     # Handle sample question selection
     pending_question = None
     if 'sample_question' in st.session_state and st.session_state.sample_question:
         pending_question = st.session_state.sample_question
         st.session_state.sample_question = None  # Clear it after using
-    
-    user_input = st.chat_input("Ask a question...")
+
+    user_input = st.chat_input("Ask a question about this week's session...")
     if user_input:
         pending_question = user_input
-    
+
     if pending_question:
+        history = list(st.session_state.messages)
         # Add the question to messages
         st.session_state.messages.append({"role": "user", "content": pending_question})
-        st.chat_message("user").write(pending_question)
+        with st.chat_message("user"):
+            show_text(pending_question)
 
-        try:
-            answer = chain.invoke({"question": pending_question})
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            st.chat_message("assistant").write(answer)
-        except Exception as e:
-            st.error(f"Error running RAG chain: {e}")
-            st.error(traceback.format_exc())
+        with st.chat_message("assistant"):
+            try:
+                with st.spinner("Thinking..."):
+                    docs = vectorstore.similarity_search(pending_question, k=5)
+                    answer = (model | StrOutputParser()).invoke(build_prompt(pending_question, docs, history))
+                sources = [
+                    (text[:300] + "…") if len(text) > 300 else text
+                    for text in (" ".join(d.page_content.split()) for d in docs)
+                ]
+                show_text(answer)
+                show_sources(sources)
+                st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
+            except Exception as e:
+                st.error(friendly_error(e))
+                with st.expander("Technical details"):
+                    st.code(traceback.format_exc())
 
 else:
-    # Handle sample question selection even without API key
+    # Keep a sample question chosen before the API key is entered, and answer it once a key is in
     if 'sample_question' in st.session_state and st.session_state.sample_question:
-        st.info(f"You selected: '{st.session_state.sample_question}' - Please enter your API key above to get an answer!")
-        st.session_state.sample_question = None  # Clear it after showing
-    
-    st.warning("Please enter your API key and choose a provider.", icon="⚠")
+        st.info(
+            f"You selected: '{st.session_state.sample_question}'. "
+            "It will be answered as soon as you enter your API key."
+        )
+
+    if not api_key:
+        st.warning(
+            "Please choose a provider and enter your API key in the sidebar. "
+            "On a phone, tap the arrow at the top-left of the screen to open it.",
+            icon="⚠",
+        )
