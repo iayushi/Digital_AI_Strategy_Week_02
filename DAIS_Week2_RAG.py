@@ -16,7 +16,7 @@ from langchain_classic.retrievers.multi_vector import MultiVectorRetriever
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 # from langchain_together import ChatTogether
 from langchain_groq import ChatGroq
-from langchain_community.chat_models import ChatHuggingFace
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 #from langchain_community.chat_models import ChatPerplexity
 from langchain_anthropic import ChatAnthropic
 from langchain_perplexity import ChatPerplexity
@@ -149,31 +149,35 @@ if api_key:
         elif provider == "Groq":
             model = ChatGroq(
                 groq_api_key=api_key,
-                model_name=model_name or "llama-3.1-8b-instant",
+                model_name=model_name or "openai/gpt-oss-20b",
                 temperature=0.7
             )
 
         elif provider == "Hugging Face":
-            # Typical model e.g. "HuggingFaceH4/zephyr-7b-beta"
-            model = ChatHuggingFace(
+            # Any chat model served by Hugging Face Inference Providers
+            llm = HuggingFaceEndpoint(
                 huggingfacehub_api_token=api_key,
-                repo_id=model_name or "HuggingFaceH4/zephyr-7b-beta",
+                repo_id=model_name or "openai/gpt-oss-20b",
+                provider="auto",
+                max_new_tokens=1024,
                 temperature=0.7
             )
+            model = ChatHuggingFace(llm=llm)
 
         elif provider == "Anthropic" and api_key.startswith("sk-ant-"):
+            # The Anthropic API no longer accepts temperature, so none is passed
             model = ChatAnthropic(
                 anthropic_api_key=api_key,
-                model_name=model_name or "claude-3-haiku-20240307",
-                temperature=0.7
+                model_name=model_name or "claude-haiku-5-5"
             )
 
         elif provider == "Perplexity" and api_key.startswith("pplx-"):
-            model = ChatPerplexity(
-                api_key=api_key,
-                model=model_name or "sonar-pro",
-                temperature=0.7
-            )
+            # Sonar models were retired; Perplexity now serves the Agent API.
+            # The "fast" preset replaces "sonar"; a model name must be "provider/model".
+            if model_name:
+                model = ChatPerplexity(api_key=api_key, model=model_name, use_responses_api=True)
+            else:
+                model = ChatPerplexity(api_key=api_key, use_responses_api=True, model_kwargs={"preset": "fast"})
         else:
             st.error("Unsupported provider or invalid API key format.")
     except Exception as e:
