@@ -32,6 +32,8 @@ import traceback
 from operator import itemgetter
 import torch
 import os
+import shutil
+import tempfile
 
 os.environ["PYTORCH_ENABLE_META_TENSOR"] = "0"
 
@@ -183,19 +185,53 @@ if api_key:
     except Exception as e:
         st.error(f"Error initializing model: {e}")
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_SOURCE = os.path.join(APP_DIR, PERSIST_DIRECTORY)
+DB_COPY = os.path.join(tempfile.gettempdir(), "chroma_" + os.path.basename(os.path.normpath(DB_SOURCE)))
+
 # Load the embedding model and vectorstore once and share them across all
-# sessions. Opening Chroma on every rerun crashes when sessions overlap.
+# sessions. Chroma opens a fresh, writable copy of the database so it never
+# writes into the app's source folder.
 @st.cache_resource(show_spinner="Loading course materials...")
 def load_vectorstore():
+    shutil.rmtree(DB_COPY, ignore_errors=True)
+    shutil.copytree(DB_SOURCE, DB_COPY, ignore=shutil.ignore_patterns("*-wal", "*-shm", "*-journal"))
+    for root, dirs, files in os.walk(DB_COPY):
+        os.chmod(root, 0o755)
+        for name in files:
+            os.chmod(os.path.join(root, name), 0o644)
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     return Chroma(
-        persist_directory=PERSIST_DIRECTORY,
+        persist_directory=DB_COPY,
         embedding_function=embedding_model
     )
 
+def describe_folder(path):
+    if not os.path.isdir(path):
+        return f"{path}: missing"
+    lines = [f"{path}:"]
+    for root, dirs, files in os.walk(path):
+        for name in sorted(files):
+            full = os.path.join(root, name)
+            lines.append(f"  {os.path.relpath(full, path)}  {os.path.getsize(full)} bytes")
+    return "\n".join(lines)
+
 if model:
 
-    vectorstore = load_vectorstore()
+    try:
+        vectorstore = load_vectorstore()
+    except Exception as e:
+        # Show the real error: Streamlit hides the message of uncaught exceptions
+        import chromadb
+        st.error("Could not load the course materials. Please share the details below with the app maintainer.")
+        st.code(
+            f"{type(e).__name__}: {e}\n\n"
+            f"chromadb {chromadb.__version__}, Python {sys.version.split()[0]}\n"
+            f"cwd: {os.getcwd()}\n"
+            f"{describe_folder(DB_SOURCE)}\n"
+            f"{describe_folder(DB_COPY)}"
+        )
+        st.stop()
 
     # Cleaner parse_docs with expander
     def parse_docs(docs):
