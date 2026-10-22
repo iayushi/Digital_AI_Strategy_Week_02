@@ -183,15 +183,19 @@ if api_key:
     except Exception as e:
         st.error(f"Error initializing model: {e}")
 
-if model:
-    
+# Load the embedding model and vectorstore once and share them across all
+# sessions. Opening Chroma on every rerun crashes when sessions overlap.
+@st.cache_resource(show_spinner="Loading course materials...")
+def load_vectorstore():
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    
-    # Load vectorstore from disk instead of recreating it
-    vectorstore = Chroma(
+    return Chroma(
         persist_directory=PERSIST_DIRECTORY,
         embedding_function=embedding_model
     )
+
+if model:
+
+    vectorstore = load_vectorstore()
 
     # Cleaner parse_docs with expander
     def parse_docs(docs):
